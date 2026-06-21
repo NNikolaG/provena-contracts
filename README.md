@@ -59,7 +59,13 @@ Predlog toka: promena ide prvo ovde (spec) → CI proveri breaking → objavi no
 
 U Fazi 0–1 (demo, prvi piloti, sve pokreće osnivač) dovoljne su same JSON Schema datoteke da se Go i Python slažu oko poruka. Pun OpenAPI → SDK pipeline se isplati u Fazi C, kad se API otvori spoljnim klijentima.
 
-### Faza A konvencije (v0.2.0)
+### Faza B konvencije (v0.3.0)
+
+**Autentikacija:** `Authorization: Bearer <api_key>` na svim rutama osim `GET /v1/healthz`.
+
+**Novi endpointi:** `GET /v1/jobs`, `POST /v1/jobs/{jobId}/retry`, `DELETE /v1/jobs/{jobId}`.
+
+**Queue poruke:** `tenant_id` iz auth konteksta (više nije uvek `"default"`).
 
 **Spoljni tok (dvo koraka):**
 
@@ -69,6 +75,6 @@ U Fazi 0–1 (demo, prvi piloti, sve pokreće osnivač) dovoljne su same JSON Sc
 **Queue poruke (`job.schema.json`):**
 
 - `contract_version`: `1`
-- `tenant_id`: uvek `"default"` dok nema multi-tenant (Faza B)
+- `tenant_id`: identifikator tenant-a iz API ključa
 - `parcels_ref`: isti ključ koji vraća upload endpoint
 

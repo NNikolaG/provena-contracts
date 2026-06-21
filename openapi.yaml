@@ -16,7 +16,7 @@ info:
     Satelitska verifikacija da parcela nije krčena posle baseline datuma
     (EUDR). Klijent prvo uploaduje parcele, zatim kreira posao sa parcels_ref;
     sistem vraća audit-spreman dokaz po parceli.
-  version: 0.2.0   # contract version — bump na svaku promenu; CI obara breaking promene
+  version: 0.3.0   # contract version — bump na svaku promenu; CI obara breaking promene
 
 servers:
   - url: https://api.provena.example
@@ -24,8 +24,9 @@ servers:
   - url: http://localhost:8080
     description: lokalni razvoj
 
-# Faza A: bez autentikacije; eksplicitno prazan security (Redocly lint).
-security: []
+# Faza B: API ključ preko Authorization Bearer; healthz ostaje javan.
+security:
+  - bearerAuth: []
 
 paths:
   /v1/healthz:
@@ -33,6 +34,7 @@ paths:
       operationId: getHealth
       summary: Health check
       tags: [system]
+      security: []
       responses:
         "200":
           description: Servis radi
@@ -69,8 +71,26 @@ paths:
                 $ref: "#/components/schemas/UploadParcelsResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /v1/jobs:
+    get:
+      operationId: listJobs
+      summary: Lista poslova tenant-a
+      tags: [jobs]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Lista poslova
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
       operationId: createJob
       summary: Predaj posao verifikacije (referenca na uploadovane parcele)
@@ -90,6 +110,10 @@ paths:
                 $ref: "#/components/schemas/Job"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /v1/jobs/{jobId}:
     get:
@@ -105,8 +129,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Job"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: cancelJob
+      summary: Otkaži posao na čekanju
+      description: Dozvoljeno samo dok je status pending.
+      tags: [jobs]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "204":
+          description: Posao otkazan
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/jobs/{jobId}/retry:
+    post:
+      operationId: retryJob
+      summary: Ponovo stavi posao u red
+      description: Dozvoljeno samo za poslove u statusu error.
+      tags: [jobs]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "202":
+          description: Posao ponovo stavljen u red
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /v1/jobs/{jobId}/result:
     get:
@@ -122,22 +186,60 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Result"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API key
+      description: >
+        API ključ tenant-a. Šalje se kao Authorization: Bearer <api_key>.
+
   parameters:
     JobId:
       name: jobId
       in: path
       required: true
       schema: { type: string, format: uuid }
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Maksimalan broj poslova u odgovoru
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+      description: Vrati poslove starije od ovog created_at (paginacija)
 
   responses:
     BadRequest:
       description: Neispravan zahtev
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Nedostaje ili je nevažeći API ključ
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: Pristup odbijen (npr. parcels_ref drugog tenant-a)
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -206,6 +308,18 @@ components:
         job_id: { type: string, format: uuid }
         status: { $ref: "#/components/schemas/JobStatus" }
         created_at: { type: string, format: date-time }
+
+    JobList:
+      type: object
+      required: [jobs]
+      properties:
+        jobs:
+          type: array
+          items: { $ref: "#/components/schemas/Job" }
+        next_cursor:
+          type: string
+          format: date-time
+          description: Cursor za sledeću stranicu; izostavljen ako nema više rezultata
 
     ParcelResult:
       type: object

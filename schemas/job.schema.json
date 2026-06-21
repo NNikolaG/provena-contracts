@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://provena.example/schemas/job.schema.json",
   "title": "Job",
-  "description": "UNUTRAŠNJI ugovor: poruka koju provena-api ubacuje u red, a provena-verify-service preuzima. Verzioniše se preko contract_version. Faza A: tenant_id je uvek \"default\"; parcels_ref je ključ koji vraća POST /v1/uploads/parcels (spoljni OpenAPI).",
+  "description": "UNUTRAŠNJI ugovor: poruka koju provena-api ubacuje u red, a provena-verify-service preuzima. Verzioniše se preko contract_version. Faza B: tenant_id identifikuje vlasnika posla (iz API ključa); parcels_ref je ključ koji vraća POST /v1/uploads/parcels (spoljni OpenAPI).",
   "type": "object",
   "required": ["contract_version", "job_id", "tenant_id", "parcels_ref", "baseline_date"],
   "additionalProperties": false,
@@ -18,7 +18,7 @@
     },
     "tenant_id": {
       "type": "string",
-      "description": "Kome posao pripada (multi-tenant). Faza A: uvek \"default\"."
+      "description": "Kome posao pripada (multi-tenant). Vrednost iz auth konteksta tenant-a."
     },
     "parcels_ref": {
       "type": "string",
