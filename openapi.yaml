@@ -1,0 +1,193 @@
+openapi: 3.0.3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# provena-contracts — SPOLJNI API (provena-api ↔ kupci / konsultanti)
+#
+# Ovo je IZVOR ISTINE za HTTP/REST ugovor. provena-api implementira ovaj spec;
+# klijentski SDK-ovi se GENERIŠU iz njega (vidi README). Ne menjaj klijente ručno.
+#
+# Za UNUTRAŠNJU granicu (api ↔ worker preko reda poslova) vidi schemas/*.json —
+# OpenAPI ne pokriva asinhrone poruke.
+# ─────────────────────────────────────────────────────────────────────────────
+
+info:
+  title: Provena API
+  description: >
+    Satelitska verifikacija da parcela nije krčena posle baseline datuma
+    (EUDR). Klijent predaje parcele, sistem vraća audit-spreman dokaz po parceli.
+  version: 0.1.0   # contract version — bump na svaku promenu; CI obara breaking promene
+
+servers:
+  - url: https://api.provena.example
+    description: produkcija (placeholder)
+  - url: http://localhost:8080
+    description: lokalni razvoj
+
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      summary: Health check
+      tags: [system]
+      responses:
+        "200":
+          description: Servis radi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+
+  /jobs:
+    post:
+      operationId: createJob
+      summary: Predaj posao verifikacije (lista parcela)
+      tags: [jobs]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobRequest"
+      responses:
+        "202":
+          description: Posao prihvaćen i stavljen u red
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /jobs/{jobId}:
+    get:
+      operationId: getJob
+      summary: Status posla
+      tags: [jobs]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Trenutni status posla
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /jobs/{jobId}/result:
+    get:
+      operationId: getJobResult
+      summary: Rezultat posla (dokazi po parceli)
+      tags: [jobs]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Rezultat verifikacije
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Posao još nije gotov
+
+components:
+  parameters:
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    BadRequest:
+      description: Neispravan zahtev
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Nije pronađeno
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Verdict:
+      type: string
+      description: Ishod verifikacije za parcelu
+      enum: [deforestation_free, loss_detected, needs_review]
+
+    JobStatus:
+      type: string
+      enum: [pending, processing, done, needs_review, error]
+
+    CreateJobRequest:
+      type: object
+      required: [parcels_ref]
+      properties:
+        parcels_ref:
+          type: string
+          description: Putanja/ključ ulaznog fajla parcela u skladištu (CSV/Excel/GeoJSON)
+        baseline_date:
+          type: string
+          format: date
+          default: "2020-12-31"
+          description: Referentni datum (EUDR pravila se menjaju — konfigurabilno)
+        params:
+          type: object
+          additionalProperties: true
+          description: Opcioni parametri analize (npr. prag pouzdanosti)
+
+    Job:
+      type: object
+      required: [job_id, status]
+      properties:
+        job_id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/JobStatus" }
+        created_at: { type: string, format: date-time }
+
+    ParcelResult:
+      type: object
+      required: [parcel_id, verdict, confidence]
+      properties:
+        parcel_id: { type: string }
+        verdict: { $ref: "#/components/schemas/Verdict" }
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Ocena pouzdanosti (0–1)
+        report_ref:
+          type: string
+          description: Ključ PDF dokaza u skladištu
+        export_ref:
+          type: string
+          description: Ključ mašinski-čitljivog izvoza (CSV/GeoJSON)
+
+    Result:
+      type: object
+      required: [job_id, status, parcels]
+      properties:
+        job_id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/JobStatus" }
+        parcels:
+          type: array
+          items: { $ref: "#/components/schemas/ParcelResult" }
+        summary_ref:
+          type: string
+          description: Ključ zbirnog izveštaja u skladištu
+        method_version:
+          type: string
+          description: Verzija analitičkog metoda (radi reproducibilnosti)
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }

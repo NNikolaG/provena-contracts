@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://provena.example/schemas/job.schema.json",
+  "title": "Job",
+  "description": "UNUTRAŠNJI ugovor: poruka koju provena-api ubacuje u red, a provena-verify-service preuzima. Verzioniše se preko contract_version.",
+  "type": "object",
+  "required": ["contract_version", "job_id", "tenant_id", "parcels_ref", "baseline_date"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Verzija ugovora poruke. Nekompatibilna promena => povećaj broj."
+    },
+    "job_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Kome posao pripada (multi-tenant)."
+    },
+    "parcels_ref": {
+      "type": "string",
+      "description": "Ključ ulaznog fajla parcela u deljenom skladištu (CSV/Excel/GeoJSON)."
+    },
+    "baseline_date": {
+      "type": "string",
+      "format": "date",
+      "default": "2020-12-31",
+      "description": "Referentni datum (EUDR). Konfigurabilno."
+    },
+    "params": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Opcioni parametri analize (npr. prag pouzdanosti)."
+    }
+  }
+}

@@ -1,0 +1,39 @@
+name: contract-diff
+
+# Štiti ugovor: validira spec i obara PR na breaking promeni.
+
+on:
+  pull_request:
+    paths:
+      - "openapi.yaml"
+      - "schemas/**"
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint OpenAPI
+        run: npx -y @redocly/cli@latest lint openapi.yaml
+      - name: Validate JSON Schemas
+        run: |
+          npx -y ajv-cli@latest compile -s schemas/job.schema.json
+          npx -y ajv-cli@latest compile -s schemas/result.schema.json
+
+  breaking-change:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Baseline spec (base grana)
+        run: git show origin/${{ github.base_ref }}:openapi.yaml > /tmp/base-openapi.yaml || echo "nema baseline-a"
+      - name: oasdiff breaking
+        uses: oasdiff/oasdiff-action/breaking@main
+        with:
+          base: /tmp/base-openapi.yaml
+          revision: openapi.yaml
+          fail-on: ERR

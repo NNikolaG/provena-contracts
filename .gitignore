@@ -1,0 +1,10 @@
+# Generisani SDK-ovi i tipovi (ne komituju se — generišu iz spec-a)
+/generated/
+/dist/
+node_modules/
+*.tgz
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
