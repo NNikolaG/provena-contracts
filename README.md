@@ -59,11 +59,15 @@ Predlog toka: promena ide prvo ovde (spec) → CI proveri breaking → objavi no
 
 U Fazi 0–1 (demo, prvi piloti, sve pokreće osnivač) dovoljne su same JSON Schema datoteke da se Go i Python slažu oko poruka. Pun OpenAPI → SDK pipeline se isplati u Fazi C, kad se API otvori spoljnim klijentima.
 
-### Faza B konvencije (v0.3.0)
+### Faza B konvencije (v0.3.2)
 
 **Autentikacija:** `Authorization: Bearer <api_key>` na svim rutama osim `GET /v1/healthz`.
 
 **Novi endpointi:** `GET /v1/jobs`, `POST /v1/jobs/{jobId}/retry`, `DELETE /v1/jobs/{jobId}`.
+
+**Kvote i rate limiting:** tenant ima `max_active_jobs` (pending + processing) i
+per-tenant rate limit (`rate_limit_rps`, `rate_limit_burst`). Prekoračenje vraća
+`429` sa `code: quota_exceeded` ili `code: rate_limited` i opcionim `Retry-After`.
 
 **Queue poruke:** `tenant_id` iz auth konteksta (više nije uvek `"default"`).
 
