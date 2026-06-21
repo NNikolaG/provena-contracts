@@ -19,8 +19,8 @@ jobs:
         run: npx -y @redocly/cli@latest lint openapi.yaml
       - name: Validate JSON Schemas
         run: |
-          npx -y ajv-cli@latest compile -s schemas/job.schema.json
-          npx -y ajv-cli@latest compile -s schemas/result.schema.json
+          npx -y ajv-cli@latest compile --spec=draft2020 -c ajv-formats -s schemas/job.schema.json
+          npx -y ajv-cli@latest compile --spec=draft2020 -c ajv-formats -s schemas/result.schema.json
 
   breaking-change:
     runs-on: ubuntu-latest
