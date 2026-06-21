@@ -14,8 +14,9 @@ info:
   title: Provena API
   description: >
     Satelitska verifikacija da parcela nije krčena posle baseline datuma
-    (EUDR). Klijent predaje parcele, sistem vraća audit-spreman dokaz po parceli.
-  version: 0.1.0   # contract version — bump na svaku promenu; CI obara breaking promene
+    (EUDR). Klijent prvo uploaduje parcele, zatim kreira posao sa parcels_ref;
+    sistem vraća audit-spreman dokaz po parceli.
+  version: 0.2.0   # contract version — bump na svaku promenu; CI obara breaking promene
 
 servers:
   - url: https://api.provena.example
@@ -23,8 +24,11 @@ servers:
   - url: http://localhost:8080
     description: lokalni razvoj
 
+# Faza A: bez autentikacije; eksplicitno prazan security (Redocly lint).
+security: []
+
 paths:
-  /healthz:
+  /v1/healthz:
     get:
       operationId: getHealth
       summary: Health check
@@ -39,10 +43,37 @@ paths:
                 properties:
                   status: { type: string, example: ok }
 
-  /jobs:
+  /v1/uploads/parcels:
+    post:
+      operationId: uploadParcels
+      summary: Upload liste parcela u skladište
+      description: >
+        Prvi korak dvo-koračnog toka: klijent šalje JSON niz parcela (GeoJSON
+        geometrija). Odgovor sadrži parcels_ref — ključ u deljenom skladištu
+        koji se prosleđuje u POST /v1/jobs.
+      tags: [uploads]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/Parcel"
+      responses:
+        "201":
+          description: Parcele uspešno uploadovane
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadParcelsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /v1/jobs:
     post:
       operationId: createJob
-      summary: Predaj posao verifikacije (lista parcela)
+      summary: Predaj posao verifikacije (referenca na uploadovane parcele)
       tags: [jobs]
       requestBody:
         required: true
@@ -60,7 +91,7 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
-  /jobs/{jobId}:
+  /v1/jobs/{jobId}:
     get:
       operationId: getJob
       summary: Status posla
@@ -77,7 +108,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /jobs/{jobId}/result:
+  /v1/jobs/{jobId}/result:
     get:
       operationId: getJobResult
       summary: Rezultat posla (dokazi po parceli)
@@ -94,7 +125,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Posao još nije gotov
+          $ref: "#/components/responses/Conflict"
 
 components:
   parameters:
@@ -115,6 +146,11 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: Konflikt stanja (npr. posao još nije gotov)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
     Verdict:
@@ -126,13 +162,33 @@ components:
       type: string
       enum: [pending, processing, done, needs_review, error]
 
+    Parcel:
+      type: object
+      required: [id, geometry]
+      properties:
+        id:
+          type: string
+          description: Identifikator parcele u okviru posla
+        geometry:
+          type: object
+          description: GeoJSON Geometry objekat (Point, Polygon, MultiPolygon, …)
+          additionalProperties: true
+
+    UploadParcelsResponse:
+      type: object
+      required: [parcels_ref]
+      properties:
+        parcels_ref:
+          type: string
+          description: Ključ uploadovanog fajla parcela u deljenom skladištu
+
     CreateJobRequest:
       type: object
       required: [parcels_ref]
       properties:
         parcels_ref:
           type: string
-          description: Putanja/ključ ulaznog fajla parcela u skladištu (CSV/Excel/GeoJSON)
+          description: Ključ ulaznog fajla parcela u skladištu (iz POST /v1/uploads/parcels)
         baseline_date:
           type: string
           format: date
