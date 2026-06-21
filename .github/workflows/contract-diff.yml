@@ -7,6 +7,7 @@ on:
     paths:
       - "openapi.yaml"
       - "schemas/**"
+      - "VERSION"
   push:
     branches: [main]
 
@@ -15,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Version sync (VERSION == openapi info.version)
+        run: make version-check
       - name: Lint OpenAPI
         run: npx -y @redocly/cli@latest lint openapi.yaml
       - name: Validate JSON Schemas

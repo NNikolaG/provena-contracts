@@ -5,10 +5,11 @@ OPENAPI      := openapi.yaml
 OUT          := generated
 GEN_IMAGE    := openapitools/openapi-generator-cli:latest
 
-.PHONY: help lint diff sdk-go sdk-python types-python types-go clean
+.PHONY: help lint version-check diff sdk-go sdk-python types-python types-go clean
 
 help:
 	@echo "lint          - validacija openapi.yaml i JSON shema"
+	@echo "version-check - VERSION fajl mora da se poklapa sa openapi info.version"
 	@echo "diff BASE=ref - breaking-change diff openapi.yaml vs git ref"
 	@echo "sdk-go        - generiši Go klijent iz openapi.yaml"
 	@echo "sdk-python    - generiši Python klijent iz openapi.yaml"
@@ -20,6 +21,16 @@ lint:
 	npx -y @redocly/cli@latest lint $(OPENAPI)
 	npx -y ajv-cli@latest compile -s schemas/job.schema.json
 	npx -y ajv-cli@latest compile -s schemas/result.schema.json
+
+# --- verzija: VERSION fajl == openapi info.version (bez spoljnih zavisnosti) ---
+version-check:
+	@v_file=$$(tr -d '[:space:]' < VERSION); \
+	v_spec=$$(grep -E '^[[:space:]]+version:' $(OPENAPI) | head -1 | sed -E 's/.*version:[[:space:]]*([^[:space:]#]+).*/\1/'); \
+	if [ "$$v_file" != "$$v_spec" ]; then \
+		echo "✗ neslaganje: VERSION ($$v_file) != openapi info.version ($$v_spec)"; \
+		echo "  bumpuj oba na istu vrednost."; exit 1; \
+	fi; \
+	echo "✓ version-check OK ($$v_file)"
 
 # --- breaking-change diff (CI ga koristi) ---
 # BASE je git ref sa kojim poredimo (npr. origin/main).
