@@ -16,7 +16,7 @@ info:
     Satelitska verifikacija da parcela nije krčena posle baseline datuma
     (EUDR). Klijent prvo uploaduje parcele, zatim kreira posao sa parcels_ref;
     sistem vraća audit-spreman dokaz po parceli.
-  version: 0.3.0   # contract version — bump na svaku promenu; CI obara breaking promene
+  version: 0.3.1   # contract version — bump na svaku promenu; CI obara breaking promene
 
 servers:
   - url: https://api.provena.example
@@ -193,6 +193,44 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /v1/jobs/{jobId}/artifact:
+    get:
+      operationId: getJobArtifact
+      summary: Preuzmi artefakt iz skladišta
+      description: >
+        Vraća sadržaj fajla iz deljenog skladišta. Query parametar `ref` mora biti
+        jedan od report_ref, export_ref ili summary_ref iz GET /v1/jobs/{jobId}/result.
+      tags: [jobs]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+        - $ref: "#/components/parameters/ArtifactRef"
+      responses:
+        "200":
+          description: Sadržaj artefakta (PDF, GeoJSON, CSV, …)
+          content:
+            application/geo+json:
+              schema:
+                type: object
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -208,6 +246,13 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    ArtifactRef:
+      name: ref
+      in: query
+      required: true
+      schema:
+        type: string
+      description: Storage ključ artefakta (report_ref, export_ref ili summary_ref iz rezultata)
     Limit:
       name: limit
       in: query
