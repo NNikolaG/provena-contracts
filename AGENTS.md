@@ -52,3 +52,20 @@ Faza 0–1: dovoljne su JSON Schema datoteke da se Go i Python slažu oko poruka
 Pun OpenAPI→SDK pipeline se isplati u Fazi C (API otvoren spolja).
 
 Detalji: `README.md`.
+---
+
+## Odakle vući kontekst (povezani repoi)
+
+Svaki repo je samostalan, ali pripada istom sistemu. Kad ti treba šira slika ili ugovor, kontekst je OVDE — ne pretpostavljaj:
+
+1. **Ovaj repo:** `AGENTS.md` / `CLAUDE.md` (ovaj kontekst) + `README.md` + `SPEC.md` (ako postoji) — uloga, faze, pokretanje.
+2. **Ugovor = izvor istine:** repo **provena-contracts** → `openapi.yaml` (spoljni API) i `schemas/*.json` (queue poruke). Nikad ne definiši ni ne menjaj ugovor lokalno; pročitaj/povuci odavde.
+3. **Ceo sistem / kako se diže:** repo **provena-deploy** → orkestrator (docker-compose).
+
+GitHub:
+- provena-api — https://github.com/NNikolaG/provena-api
+- provena-verify-service — https://github.com/NNikolaG/provena-verify-service
+- provena-contracts — https://github.com/NNikolaG/provena-contracts
+- provena-deploy — https://github.com/NNikolaG/provena-deploy
+
+**Pravilo:** promena koja dira ugovor počinje u `provena-contracts` (bump verzije + CI breaking-check), pa se ovde povuče. Lokalni tipovi/modeli MORAJU da prate `provena-contracts` (ne smeju da se raziđu).
