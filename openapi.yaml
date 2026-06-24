@@ -16,7 +16,7 @@ info:
     Satelitska verifikacija da parcela nije krčena posle baseline datuma
     (EUDR). Klijent prvo uploaduje parcele, zatim kreira posao sa parcels_ref;
     sistem vraća audit-spreman dokaz po parceli.
-  version: 0.3.2   # contract version — bump na svaku promenu; CI obara breaking promene
+  version: 0.4.0   # contract version — bump na svaku promenu; CI obara breaking promene
 
 servers:
   - url: https://api.provena.example
@@ -29,6 +29,93 @@ security:
   - bearerAuth: []
 
 paths:
+  /v1/auth/login:
+    post:
+      operationId: authLogin
+      summary: Prijava platform korisnika
+      description: >
+        Vraća kratkotrajni JWT access token u telu odgovora. Refresh token se
+        postavlja kao HttpOnly cookie (provena_refresh).
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Uspešna prijava
+          headers:
+            Set-Cookie:
+              description: HttpOnly refresh token cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/auth/refresh:
+    post:
+      operationId: authRefresh
+      summary: Osveži access token
+      description: >
+        Čita refresh token iz HttpOnly cookie-a, rotira ga i vraća novi access
+        token. Zahteva credentials: include na klijentu.
+      tags: [auth]
+      security: []
+      responses:
+        "200":
+          description: Novi access token
+          headers:
+            Set-Cookie:
+              description: Rotirani HttpOnly refresh token cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/auth/logout:
+    post:
+      operationId: authLogout
+      summary: Odjava platform korisnika
+      description: Opoziva refresh token i briše cookie. Prihvata JWT access ili refresh cookie.
+      tags: [auth]
+      security: []
+      responses:
+        "204":
+          description: Uspešna odjava
+          headers:
+            Set-Cookie:
+              description: Brisanje refresh cookie-a
+              schema:
+                type: string
+
+  /v1/auth/me:
+    get:
+      operationId: authMe
+      summary: Trenutni platform korisnik
+      tags: [auth]
+      responses:
+        "200":
+          description: Profil prijavljenog korisnika
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /v1/healthz:
     get:
       operationId: getHealth
@@ -246,9 +333,10 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: API key
+      bearerFormat: JWT or API key
       description: >
-        API ključ tenant-a. Šalje se kao Authorization: Bearer <api_key>.
+        API ključ tenant-a (prov_…) ili JWT access token platform korisnika.
+        Šalje se kao Authorization: Bearer <token>.
 
   parameters:
     JobId:
@@ -289,7 +377,7 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     Unauthorized:
-      description: Nedostaje ili je nevažeći API ključ
+      description: Nedostaje ili je nevažeći API ključ / JWT access token
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -320,6 +408,46 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+          description: Kratkotrajni JWT access token
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Sekunde do isteka access tokena
+          example: 900
+
+    UserProfile:
+      type: object
+      required: [user_id, email, tenant_id]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        tenant_id:
+          type: string
+
     Verdict:
       type: string
       description: Ishod verifikacije za parcelu
