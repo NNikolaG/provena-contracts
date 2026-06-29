@@ -9,8 +9,9 @@ info:
   description: >
     Compliance platforma za regionalne izvoznike ka EU (supply strana).
     Core engine: dobavljači, lokacije (geo), dokazi (vault), satelitska verify
-    (Whisp, stub 2 EUDR). Chain-of-custody i paketi — planirano v0.9+.
-  version: 0.8.1
+    (Whisp, stub 2 EUDR), chain-of-custody (lots, događaji, isporuke).
+    Compliance paketi i dashboard — planirano v1.0.
+  version: 0.9.0
 
 servers:
   - url: https://api.provena.example
@@ -34,6 +35,12 @@ tags:
     description: Deforestation-free provera (Whisp, stub 2)
   - name: evidence
     description: Vault dokaza (stub 1 legalnost)
+  - name: lots
+    description: Chain-of-custody lotovi (stub 3)
+  - name: lot-events
+    description: Događaji na lotu (ulaz, proces, izlaz, isporuka)
+  - name: shipments
+    description: Isporuke ka EU kupcu
   - name: jobs
     description: "Legacy verify poslovi (deprecated)"
   - name: uploads
@@ -589,6 +596,290 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /v1/lots:
+    get:
+      operationId: listLots
+      summary: Lista lotova
+      tags: [lots]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/LotStatus" }
+      responses:
+        "200":
+          description: Lista lotova
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LotList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createLot
+      summary: Kreiraj lot
+      tags: [lots]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLotRequest"
+      responses:
+        "201":
+          description: Lot kreiran
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/lots/{lotId}:
+    get:
+      operationId: getLot
+      summary: Detalji lota
+      tags: [lots]
+      parameters:
+        - $ref: "#/components/parameters/LotId"
+      responses:
+        "200":
+          description: Lot sa bilansom količina
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateLot
+      summary: Ažuriraj lot (label, zatvaranje)
+      tags: [lots]
+      parameters:
+        - $ref: "#/components/parameters/LotId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLotRequest"
+      responses:
+        "200":
+          description: Lot ažuriran
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteLot
+      summary: Obriši lot (samo open, bez događaja)
+      tags: [lots]
+      parameters:
+        - $ref: "#/components/parameters/LotId"
+      responses:
+        "204":
+          description: Obrisano
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/lot-events:
+    get:
+      operationId: listLotEvents
+      summary: Lista događaja na lotovima
+      tags: [lot-events]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: lot_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Lista događaja
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LotEventList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: createLotEvent
+      summary: Dodaj događaj na lot
+      tags: [lot-events]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLotEventRequest"
+      responses:
+        "201":
+          description: Događaj kreiran
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LotEvent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/lot-events/{eventId}:
+    get:
+      operationId: getLotEvent
+      summary: Detalji događaja
+      tags: [lot-events]
+      parameters:
+        - $ref: "#/components/parameters/LotEventId"
+      responses:
+        "200":
+          description: Događaj
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LotEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteLotEvent
+      summary: Obriši događaj (samo open lot)
+      tags: [lot-events]
+      parameters:
+        - $ref: "#/components/parameters/LotEventId"
+      responses:
+        "204":
+          description: Obrisano
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/shipments:
+    get:
+      operationId: listShipments
+      summary: Lista isporuka
+      tags: [shipments]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Lista isporuka
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipmentList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createShipment
+      summary: Kreiraj isporuku
+      tags: [shipments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShipmentRequest"
+      responses:
+        "201":
+          description: Isporuka kreirana
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shipment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/shipments/{shipmentId}:
+    get:
+      operationId: getShipment
+      summary: Detalji isporuke
+      tags: [shipments]
+      parameters:
+        - $ref: "#/components/parameters/ShipmentId"
+      responses:
+        "200":
+          description: Isporuka
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shipment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateShipment
+      summary: Ažuriraj isporuku
+      tags: [shipments]
+      parameters:
+        - $ref: "#/components/parameters/ShipmentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateShipmentRequest"
+      responses:
+        "200":
+          description: Isporuka ažurirana
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shipment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteShipment
+      summary: Obriši isporuku
+      tags: [shipments]
+      parameters:
+        - $ref: "#/components/parameters/ShipmentId"
+      responses:
+        "204":
+          description: Obrisano
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /v1/uploads/parcels:
     post:
       operationId: uploadParcels
@@ -755,6 +1046,21 @@ components:
       schema: { type: string, format: uuid }
     EvidenceId:
       name: evidenceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    LotId:
+      name: lotId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    LotEventId:
+      name: eventId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ShipmentId:
+      name: shipmentId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -1056,6 +1362,146 @@ components:
         title: { type: string }
         kind: { type: string }
         expires_at: { type: string, format: date }
+
+    LotStatus:
+      type: string
+      enum: [open, closed]
+
+    LotBalance:
+      type: object
+      required: [unit, received, output, remaining]
+      properties:
+        unit: { type: string, description: "Jedinica mere (npr. m3/ex, kg — pack-specifično)" }
+        received: { type: number, minimum: 0 }
+        output: { type: number, minimum: 0 }
+        remaining: { type: number, description: "received − output" }
+
+    Lot:
+      type: object
+      required: [lot_id, label, status, created_at, updated_at]
+      properties:
+        lot_id: { type: string, format: uuid }
+        label: { type: string }
+        status: { $ref: "#/components/schemas/LotStatus" }
+        balance: { $ref: "#/components/schemas/LotBalance" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    LotList:
+      type: object
+      required: [lots]
+      properties:
+        lots:
+          type: array
+          items: { $ref: "#/components/schemas/Lot" }
+        next_cursor: { type: string, format: date-time }
+
+    CreateLotRequest:
+      type: object
+      required: [label]
+      properties:
+        label: { type: string }
+
+    UpdateLotRequest:
+      type: object
+      properties:
+        label: { type: string }
+        status: { $ref: "#/components/schemas/LotStatus" }
+
+    LotEventKind:
+      type: string
+      enum: [receipt, process, output, shipment]
+
+    LotEvent:
+      type: object
+      required: [event_id, lot_id, kind, quantity, unit, occurred_at, created_at]
+      properties:
+        event_id: { type: string, format: uuid }
+        lot_id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/LotEventKind" }
+        quantity: { type: number, minimum: 0, exclusiveMinimum: true }
+        unit: { type: string }
+        location_id: { type: string, format: uuid }
+        supplier_id: { type: string, format: uuid }
+        shipment_id: { type: string, format: uuid }
+        occurred_at: { type: string, format: date-time }
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Pack-specifična polja (vidi packs/*/fields.json)
+        created_at: { type: string, format: date-time }
+
+    LotEventList:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/LotEvent" }
+        next_cursor: { type: string, format: date-time }
+
+    CreateLotEventRequest:
+      type: object
+      required: [lot_id, kind, quantity, unit, occurred_at]
+      properties:
+        lot_id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/LotEventKind" }
+        quantity: { type: number, minimum: 0, exclusiveMinimum: true }
+        unit: { type: string }
+        location_id: { type: string, format: uuid }
+        supplier_id: { type: string, format: uuid }
+        shipment_id: { type: string, format: uuid }
+        occurred_at: { type: string, format: date-time }
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Shipment:
+      type: object
+      required: [shipment_id, destination, shipped_at, lot_ids, created_at, updated_at]
+      properties:
+        shipment_id: { type: string, format: uuid }
+        destination: { type: string, description: "EU kupac / destinacija" }
+        shipped_at: { type: string, format: date-time }
+        lot_ids:
+          type: array
+          items: { type: string, format: uuid }
+          minItems: 1
+        external_ref: { type: string, description: "Opcioni ERP / otpremnica ref" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ShipmentList:
+      type: object
+      required: [shipments]
+      properties:
+        shipments:
+          type: array
+          items: { $ref: "#/components/schemas/Shipment" }
+        next_cursor: { type: string, format: date-time }
+
+    CreateShipmentRequest:
+      type: object
+      required: [destination, shipped_at, lot_ids]
+      properties:
+        destination: { type: string }
+        shipped_at: { type: string, format: date-time }
+        lot_ids:
+          type: array
+          items: { type: string, format: uuid }
+          minItems: 1
+        external_ref: { type: string }
+
+    UpdateShipmentRequest:
+      type: object
+      properties:
+        destination: { type: string }
+        shipped_at: { type: string, format: date-time }
+        lot_ids:
+          type: array
+          items: { type: string, format: uuid }
+          minItems: 1
+        external_ref: { type: string }
 
     Parcel:
       type: object

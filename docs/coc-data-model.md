@@ -1,6 +1,6 @@
-# Chain-of-custody — data model (M4, planirano v0.9.0 / v1.0.0)
+# Chain-of-custody — data model (M4, v0.9.0)
 
-**Status:** dizajn only — ne implementirati pre M3 u produkciji.
+**Status:** v0.9.0 contracts — lots, lot-events, shipments u OpenAPI.
 
 Detaljan opis: [provena-api/docs/implementation-plan.md](https://github.com/NNikolaG/provena-api/blob/main/docs/implementation-plan.md) (Appendix A).
 
