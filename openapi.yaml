@@ -114,6 +114,7 @@ paths:
       tags: [auth]
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -129,6 +130,7 @@ paths:
       security: []
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -146,6 +148,7 @@ paths:
         - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -164,6 +167,7 @@ paths:
               $ref: "#/components/schemas/CreateSupplierRequest"
       responses:
         "201":
+          description: Kreirano
           content:
             application/json:
               schema:
@@ -182,6 +186,7 @@ paths:
         - $ref: "#/components/parameters/SupplierId"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -204,6 +209,7 @@ paths:
               $ref: "#/components/schemas/UpdateSupplierRequest"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -248,6 +254,7 @@ paths:
           description: "minLon,minLat,maxLon,maxLat (WGS84) za map viewport"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -266,6 +273,7 @@ paths:
               $ref: "#/components/schemas/CreateLocationRequest"
       responses:
         "201":
+          description: Kreirano
           content:
             application/json:
               schema:
@@ -290,6 +298,7 @@ paths:
               $ref: "#/components/schemas/LocationImportRequest"
       responses:
         "201":
+          description: Kreirano
           content:
             application/json:
               schema:
@@ -308,6 +317,7 @@ paths:
         - $ref: "#/components/parameters/LocationId"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -330,6 +340,7 @@ paths:
               $ref: "#/components/schemas/UpdateLocationRequest"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -363,6 +374,7 @@ paths:
         - $ref: "#/components/parameters/LocationId"
       responses:
         "200":
+          description: OK
           content:
             application/geo+json:
               schema:
@@ -407,6 +419,7 @@ paths:
         - $ref: "#/components/parameters/LocationId"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -425,6 +438,7 @@ paths:
         - $ref: "#/components/parameters/VerifyJobId"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -444,6 +458,7 @@ paths:
         - $ref: "#/components/parameters/ArtifactRef"
       responses:
         "200":
+          description: Verify artefakt (PDF)
           content:
             application/pdf:
               schema: { type: string, format: binary }
@@ -462,6 +477,7 @@ paths:
         - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -480,6 +496,7 @@ paths:
               $ref: "#/components/schemas/CreateEvidenceForm"
       responses:
         "201":
+          description: Kreirano
           content:
             application/json:
               schema:
@@ -498,6 +515,7 @@ paths:
         - $ref: "#/components/parameters/EvidenceId"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -520,6 +538,7 @@ paths:
               $ref: "#/components/schemas/UpdateEvidenceRequest"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -551,6 +570,7 @@ paths:
                   format: binary
       responses:
         "201":
+          description: Kreirano
           content:
             application/json:
               schema:
@@ -571,6 +591,7 @@ paths:
         - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -591,6 +612,7 @@ paths:
         - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -1010,6 +1032,7 @@ paths:
                 $ref: "#/components/schemas/Parcel"
       responses:
         "201":
+          description: Kreirano
           content:
             application/json:
               schema:
@@ -1030,6 +1053,7 @@ paths:
         - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -1049,6 +1073,7 @@ paths:
               $ref: "#/components/schemas/CreateJobRequest"
       responses:
         "202":
+          description: Prihvaćeno
           content:
             application/json:
               schema:
@@ -1068,6 +1093,7 @@ paths:
         - $ref: "#/components/parameters/JobId"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -1095,6 +1121,7 @@ paths:
         - $ref: "#/components/parameters/JobId"
       responses:
         "202":
+          description: Prihvaćeno
           content:
             application/json:
               schema:
@@ -1110,6 +1137,7 @@ paths:
         - $ref: "#/components/parameters/JobId"
       responses:
         "200":
+          description: OK
           content:
             application/json:
               schema:
@@ -1126,6 +1154,7 @@ paths:
         - $ref: "#/components/parameters/ArtifactRef"
       responses:
         "200":
+          description: Legacy verify artefakt (deprecated)
           content:
             application/octet-stream:
               schema: { type: string, format: binary }
