@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://provena.example/packs/wood/fields.json",
+  "title": "Wood pack — evidence kinds",
+  "description": "Drvo-specifične vrednosti za Evidence.kind. Core OpenAPI koristi kind: string; api validira protiv ovog pack-a.",
+  "type": "object",
+  "properties": {
+    "evidence_kinds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "felling_permit",
+          "concession",
+          "transport_note",
+          "purchase_invoice",
+          "other"
+        ]
+      },
+      "description": "doznaka, koncesija, otpremnica, … — pack terminologija, ne core enum"
+    }
+  }
+}

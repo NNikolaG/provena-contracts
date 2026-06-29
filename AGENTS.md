@@ -4,14 +4,17 @@ Kontekst za AI agente i nove saradnike. Pročitaj pre rada na ovom repou.
 
 ## Sistem (šira slika)
 
-Provena radi satelitsku verifikaciju da parcela nije krčena posle baseline
-datuma (podrazumevano **31.12.2020**) — audit-spreman dokaz za EUDR. Sistem je
-**polyrepo**, četiri zasebna git repoa:
+Provena je **horizontalni compliance engine** za regionalne izvoznike ka EU.
+Product spec: [provena-api/docs/provena-spec-v2.md](https://github.com/NNikolaG/provena-api/blob/main/docs/provena-spec-v2.md).
+Roadmap: `docs/implementation-roadmap.md`, FE: `docs/fe-setup.md`.
+
+Sistem je **polyrepo**:
 
 | Repo | Jezik | Uloga |
 |------|-------|-------|
-| provena-api | Go | servisni / menadžment sloj |
-| provena-verify-service | Python | analitički worker (koordinate → dokaz) |
+| provena-api | Go | implementira `openapi.yaml` |
+| provena-fe | TypeScript/Angular | generisani TS SDK (`make sdk-typescript`) |
+| provena-verify-service | Python | legacy queue worker (deprecated) |
 | **provena-contracts** (ovaj) | spec | izvor istine za ugovore |
 | provena-deploy | infra | orkestrator (docker-compose za ceo sistem) |
 
@@ -38,20 +41,19 @@ Dve granice, dva spec-a:
 - CI (`.github/workflows/contract-diff.yml`) validira spec i pokreće
   **oasdiff breaking** — breaking promena obara PR.
 - Generisani kod (`generated/`) se ne komituje; generiše se iz spec-a
-  (`make sdk-go`, `make sdk-python`, `make types-go`, `make types-python`).
+  (`make sdk-go`, `make sdk-python`, `make sdk-typescript`, `make types-go`, `make types-python`).
 
 ## Ko šta koristi
 
-- provena-api: implementira `openapi.yaml`; Go tipovi queue poruka.
-- provena-verify-service: Python tipovi queue poruka.
-- spoljni klijenti: generisan SDK iz `openapi.yaml`.
+- provena-api: implementira `openapi.yaml`
+- provena-fe: `make sdk-typescript` → Angular klijent
+- provena-verify-service: legacy Python tipovi queue poruka
+- spoljni integratori: generisan SDK (Go/Python/TS)
 
 ## Faza
 
-Faza 0–1: dovoljne su JSON Schema datoteke da se Go i Python slažu oko poruka.
-Pun OpenAPI→SDK pipeline se isplati u Fazi C (API otvoren spolja).
-
-Detalji: `README.md`.
+**v2 MVP:** OpenAPI v0.8.0 — auth, suppliers, locations, verify (Whisp), evidence.
+Legacy jobs/upload deprecated. Detalji: `docs/implementation-roadmap.md`, `docs/fe-setup.md`.
 ---
 
 ## Odakle vući kontekst (povezani repoi)

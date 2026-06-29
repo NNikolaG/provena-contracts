@@ -1,0 +1,7 @@
+extends:
+  - recommended
+
+rules:
+  struct: off
+  operation-operationId: warn
+  no-unused-components: warn

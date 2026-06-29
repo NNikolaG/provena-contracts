@@ -1,22 +1,16 @@
 openapi: 3.0.3
 
-# ─────────────────────────────────────────────────────────────────────────────
-# provena-contracts — SPOLJNI API (provena-api ↔ kupci / konsultanti)
-#
-# Ovo je IZVOR ISTINE za HTTP/REST ugovor. provena-api implementira ovaj spec;
-# klijentski SDK-ovi se GENERIŠU iz njega (vidi README). Ne menjaj klijente ručno.
-#
-# Za UNUTRAŠNJU granicu (api ↔ worker preko reda poslova) vidi schemas/*.json —
-# OpenAPI ne pokriva asinhrone poruke.
-# ─────────────────────────────────────────────────────────────────────────────
+# provena-contracts — SPOLJNI API (provena-api ↔ FE / integratori)
+# Izvor istine. v2 MVP: suppliers, locations, verify (Whisp), evidence vault.
+# Legacy: /v1/uploads/parcels, /v1/jobs (deprecated — koristiti location verify).
 
 info:
   title: Provena API
   description: >
-    Satelitska verifikacija da parcela nije krčena posle baseline datuma
-    (EUDR). Klijent prvo uploaduje parcele, zatim kreira posao sa parcels_ref;
-    sistem vraća audit-spreman dokaz po parceli.
-  version: 0.4.0   # contract version — bump na svaku promenu; CI obara breaking promene
+    Compliance platforma za regionalne izvoznike ka EU (supply strana).
+    Core engine: dobavljači, lokacije (geo), dokazi (vault), satelitska verify
+    (Whisp, stub 2 EUDR). Chain-of-custody i paketi — planirano v0.9+.
+  version: 0.8.1
 
 servers:
   - url: https://api.provena.example
@@ -24,18 +18,32 @@ servers:
   - url: http://localhost:8080
     description: lokalni razvoj
 
-# Faza B: API ključ preko Authorization Bearer; healthz ostaje javan.
 security:
   - bearerAuth: []
+
+tags:
+  - name: auth
+    description: Platform prijava (JWT + refresh cookie)
+  - name: system
+    description: Health i ops
+  - name: suppliers
+    description: Registar dobavljača (core)
+  - name: locations
+    description: Lokacije / geolokacija (core)
+  - name: verify
+    description: Deforestation-free provera (Whisp, stub 2)
+  - name: evidence
+    description: Vault dokaza (stub 1 legalnost)
+  - name: jobs
+    description: "Legacy verify poslovi (deprecated)"
+  - name: uploads
+    description: "Legacy upload parcela (deprecated)"
 
 paths:
   /v1/auth/login:
     post:
       operationId: authLogin
       summary: Prijava platform korisnika
-      description: >
-        Vraća kratkotrajni JWT access token u telu odgovora. Refresh token se
-        postavlja kao HttpOnly cookie (provena_refresh).
       tags: [auth]
       security: []
       requestBody:
@@ -49,9 +57,7 @@ paths:
           description: Uspešna prijava
           headers:
             Set-Cookie:
-              description: HttpOnly refresh token cookie
-              schema:
-                type: string
+              schema: { type: string }
           content:
             application/json:
               schema:
@@ -65,9 +71,6 @@ paths:
     post:
       operationId: authRefresh
       summary: Osveži access token
-      description: >
-        Čita refresh token iz HttpOnly cookie-a, rotira ga i vraća novi access
-        token. Zahteva credentials: include na klijentu.
       tags: [auth]
       security: []
       responses:
@@ -75,9 +78,7 @@ paths:
           description: Novi access token
           headers:
             Set-Cookie:
-              description: Rotirani HttpOnly refresh token cookie
-              schema:
-                type: string
+              schema: { type: string }
           content:
             application/json:
               schema:
@@ -89,17 +90,11 @@ paths:
     post:
       operationId: authLogout
       summary: Odjava platform korisnika
-      description: Opoziva refresh token i briše cookie. Prihvata JWT access ili refresh cookie.
       tags: [auth]
       security: []
       responses:
         "204":
           description: Uspešna odjava
-          headers:
-            Set-Cookie:
-              description: Brisanje refresh cookie-a
-              schema:
-                type: string
 
   /v1/auth/me:
     get:
@@ -108,7 +103,6 @@ paths:
       tags: [auth]
       responses:
         "200":
-          description: Profil prijavljenog korisnika
           content:
             application/json:
               schema:
@@ -124,7 +118,6 @@ paths:
       security: []
       responses:
         "200":
-          description: Servis radi
           content:
             application/json:
               schema:
@@ -132,14 +125,475 @@ paths:
                 properties:
                   status: { type: string, example: ok }
 
+  /v1/suppliers:
+    get:
+      operationId: listSuppliers
+      summary: Lista dobavljača tenant-a
+      tags: [suppliers]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createSupplier
+      summary: Kreiraj dobavljača
+      tags: [suppliers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSupplierRequest"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/suppliers/{supplierId}:
+    get:
+      operationId: getSupplier
+      summary: Dobavljač po ID
+      tags: [suppliers]
+      parameters:
+        - $ref: "#/components/parameters/SupplierId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateSupplier
+      summary: Ažuriraj dobavljača
+      tags: [suppliers]
+      parameters:
+        - $ref: "#/components/parameters/SupplierId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSupplierRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteSupplier
+      summary: Obriši dobavljača
+      tags: [suppliers]
+      parameters:
+        - $ref: "#/components/parameters/SupplierId"
+      responses:
+        "204":
+          description: Obrisano
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/locations:
+    get:
+      operationId: listLocations
+      summary: Lista lokacija
+      tags: [locations]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: supplier_id
+          in: query
+          schema: { type: string, format: uuid }
+          description: Filter po dobavljaču
+        - name: bbox
+          in: query
+          schema: { type: string }
+          description: "minLon,minLat,maxLon,maxLat (WGS84) za map viewport"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createLocation
+      summary: Kreiraj lokaciju
+      tags: [locations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLocationRequest"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Location"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/locations/import:
+    post:
+      operationId: importLocations
+      summary: Bulk import lokacija
+      tags: [locations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocationImportRequest"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationImportResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/locations/{locationId}:
+    get:
+      operationId: getLocation
+      summary: Lokacija po ID
+      tags: [locations]
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Location"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateLocation
+      summary: Ažuriraj lokaciju
+      tags: [locations]
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLocationRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Location"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteLocation
+      summary: Obriši lokaciju
+      tags: [locations]
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+      responses:
+        "204":
+          description: Obrisano
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/locations/{locationId}/geometry:
+    get:
+      operationId: getLocationGeometry
+      summary: GeoJSON geometrija lokacije
+      tags: [locations]
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+      responses:
+        "200":
+          content:
+            application/geo+json:
+              schema:
+                $ref: "#/components/schemas/GeoJSONGeometry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/locations/{locationId}/verify:
+    post:
+      operationId: startLocationVerify
+      summary: Pokreni Whisp verify za lokaciju
+      tags: [verify]
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartVerifyRequest"
+      responses:
+        "202":
+          description: Verify posao prihvaćen
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyJob"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /v1/locations/{locationId}/verify/latest:
+    get:
+      operationId: getLatestLocationVerify
+      summary: Poslednji verify rezultat za lokaciju
+      tags: [verify]
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyJobWithResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/verify-jobs/{verifyJobId}:
+    get:
+      operationId: getVerifyJob
+      summary: Status verify posla
+      tags: [verify]
+      parameters:
+        - $ref: "#/components/parameters/VerifyJobId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyJobWithResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/verify-jobs/{verifyJobId}/artifact:
+    get:
+      operationId: getVerifyJobArtifact
+      summary: Preuzmi verify artefakt (PDF)
+      tags: [verify]
+      parameters:
+        - $ref: "#/components/parameters/VerifyJobId"
+        - $ref: "#/components/parameters/ArtifactRef"
+      responses:
+        "200":
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/evidence:
+    get:
+      operationId: listEvidence
+      summary: Lista dokaza tenant-a
+      tags: [evidence]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createEvidence
+      summary: Upload novog dokaza
+      tags: [evidence]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CreateEvidenceForm"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Evidence"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/evidence/{evidenceId}:
+    get:
+      operationId: getEvidence
+      summary: Dokaz po ID
+      tags: [evidence]
+      parameters:
+        - $ref: "#/components/parameters/EvidenceId"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Evidence"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateEvidence
+      summary: Ažuriraj metapodatke dokaza
+      tags: [evidence]
+      parameters:
+        - $ref: "#/components/parameters/EvidenceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEvidenceRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Evidence"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/evidence/{evidenceId}/versions:
+    post:
+      operationId: createEvidenceVersion
+      summary: Upload nove verzije dokaza
+      tags: [evidence]
+      parameters:
+        - $ref: "#/components/parameters/EvidenceId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Evidence"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/locations/{locationId}/evidence:
+    get:
+      operationId: listLocationEvidence
+      summary: Dokazi vezani za lokaciju
+      tags: [evidence]
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/suppliers/{supplierId}/evidence:
+    get:
+      operationId: listSupplierEvidence
+      summary: Dokazi vezani za dobavljača
+      tags: [evidence]
+      parameters:
+        - $ref: "#/components/parameters/SupplierId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /v1/uploads/parcels:
     post:
       operationId: uploadParcels
-      summary: Upload liste parcela u skladište
-      description: >
-        Prvi korak dvo-koračnog toka: klijent šalje JSON niz parcela (GeoJSON
-        geometrija). Odgovor sadrži parcels_ref — ključ u deljenom skladištu
-        koji se prosleđuje u POST /v1/jobs.
+      summary: "Legacy: upload parcela (deprecated)"
+      deprecated: true
       tags: [uploads]
       requestBody:
         required: true
@@ -151,7 +605,6 @@ paths:
                 $ref: "#/components/schemas/Parcel"
       responses:
         "201":
-          description: Parcele uspešno uploadovane
           content:
             application/json:
               schema:
@@ -160,31 +613,28 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "429":
-          $ref: "#/components/responses/TooManyRequests"
 
   /v1/jobs:
     get:
       operationId: listJobs
-      summary: Lista poslova tenant-a
+      summary: "Legacy: lista verify poslova (deprecated)"
+      deprecated: true
       tags: [jobs]
       parameters:
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
-          description: Lista poslova
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/JobList"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "429":
-          $ref: "#/components/responses/TooManyRequests"
     post:
       operationId: createJob
-      summary: Predaj posao verifikacije (referenca na uploadovane parcele)
+      summary: "Legacy: kreiraj verify posao (deprecated)"
+      deprecated: true
       tags: [jobs]
       requestBody:
         required: true
@@ -194,7 +644,6 @@ paths:
               $ref: "#/components/schemas/CreateJobRequest"
       responses:
         "202":
-          description: Posao prihvaćen i stavljen u red
           content:
             application/json:
               schema:
@@ -203,130 +652,78 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "429":
-          $ref: "#/components/responses/TooManyRequests"
 
   /v1/jobs/{jobId}:
     get:
       operationId: getJob
-      summary: Status posla
+      summary: "Legacy: status posla (deprecated)"
+      deprecated: true
       tags: [jobs]
       parameters:
         - $ref: "#/components/parameters/JobId"
       responses:
         "200":
-          description: Trenutni status posla
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Job"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
       operationId: cancelJob
-      summary: Otkaži posao na čekanju
-      description: Dozvoljeno samo dok je status pending.
+      summary: "Legacy: otkaži posao (deprecated)"
+      deprecated: true
       tags: [jobs]
       parameters:
         - $ref: "#/components/parameters/JobId"
       responses:
         "204":
-          description: Posao otkazan
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "429":
-          $ref: "#/components/responses/TooManyRequests"
+          description: Otkazano
 
   /v1/jobs/{jobId}/retry:
     post:
       operationId: retryJob
-      summary: Ponovo stavi posao u red
-      description: Dozvoljeno samo za poslove u statusu error.
+      summary: "Legacy: retry posla (deprecated)"
+      deprecated: true
       tags: [jobs]
       parameters:
         - $ref: "#/components/parameters/JobId"
       responses:
         "202":
-          description: Posao ponovo stavljen u red
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Job"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "429":
-          $ref: "#/components/responses/TooManyRequests"
 
   /v1/jobs/{jobId}/result:
     get:
       operationId: getJobResult
-      summary: Rezultat posla (dokazi po parceli)
+      summary: "Legacy: rezultat posla (deprecated)"
+      deprecated: true
       tags: [jobs]
       parameters:
         - $ref: "#/components/parameters/JobId"
       responses:
         "200":
-          description: Rezultat verifikacije
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Result"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
 
   /v1/jobs/{jobId}/artifact:
     get:
       operationId: getJobArtifact
-      summary: Preuzmi artefakt iz skladišta
-      description: >
-        Vraća sadržaj fajla iz deljenog skladišta. Query parametar `ref` mora biti
-        jedan od report_ref, export_ref ili summary_ref iz GET /v1/jobs/{jobId}/result.
+      summary: "Legacy: artefakt posla (deprecated)"
+      deprecated: true
       tags: [jobs]
       parameters:
         - $ref: "#/components/parameters/JobId"
         - $ref: "#/components/parameters/ArtifactRef"
       responses:
         "200":
-          description: Sadržaj artefakta (PDF, GeoJSON, CSV, …)
           content:
-            application/geo+json:
-              schema:
-                type: object
-            application/pdf:
-              schema:
-                type: string
-                format: binary
-            text/csv:
-              schema:
-                type: string
             application/octet-stream:
-              schema:
-                type: string
-                format: binary
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          $ref: "#/components/responses/Conflict"
+              schema: { type: string, format: binary }
 
 components:
   securitySchemes:
@@ -334,9 +731,6 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT or API key
-      description: >
-        API ključ tenant-a (prov_…) ili JWT access token platform korisnika.
-        Šalje se kao Authorization: Bearer <token>.
 
   parameters:
     JobId:
@@ -344,31 +738,39 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    SupplierId:
+      name: supplierId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    LocationId:
+      name: locationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VerifyJobId:
+      name: verifyJobId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    EvidenceId:
+      name: evidenceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     ArtifactRef:
       name: ref
       in: query
       required: true
-      schema:
-        type: string
-      description: Storage ključ artefakta (report_ref, export_ref ili summary_ref iz rezultata)
+      schema: { type: string }
     Limit:
       name: limit
       in: query
-      required: false
-      schema:
-        type: integer
-        minimum: 1
-        maximum: 100
-        default: 20
-      description: Maksimalan broj poslova u odgovoru
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
     Cursor:
       name: cursor
       in: query
-      required: false
-      schema:
-        type: string
-        format: date-time
-      description: Vrati poslove starije od ovog created_at (paginacija)
+      schema: { type: string, format: date-time }
 
   responses:
     BadRequest:
@@ -377,12 +779,12 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     Unauthorized:
-      description: Nedostaje ili je nevažeći API ključ / JWT access token
+      description: Nedostaje auth
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     Forbidden:
-      description: Pristup odbijen (npr. parcels_ref drugog tenant-a)
+      description: Pristup odbijen
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -392,107 +794,293 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     Conflict:
-      description: Konflikt stanja (npr. posao još nije gotov)
+      description: Konflikt stanja
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     TooManyRequests:
-      description: Prekoračena kvota aktivnih poslova ili rate limit
-      headers:
-        Retry-After:
-          description: Sekunde do ponovnog pokušaja (rate limit)
-          schema:
-            type: integer
+      description: Kvota / rate limit
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+
+    GeoJSONGeometry:
+      type: object
+      description: GeoJSON Geometry (WGS84)
+      required: [type, coordinates]
+      properties:
+        type:
+          type: string
+          enum: [Point, Polygon, MultiPolygon, LineString, MultiPoint]
+        coordinates: {}
+
     LoginRequest:
       type: object
       required: [email, password]
       properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-          format: password
-          minLength: 8
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
 
     TokenResponse:
       type: object
       required: [access_token, token_type, expires_in]
       properties:
-        access_token:
-          type: string
-          description: Kratkotrajni JWT access token
-        token_type:
-          type: string
-          example: Bearer
-        expires_in:
-          type: integer
-          description: Sekunde do isteka access tokena
-          example: 900
+        access_token: { type: string }
+        token_type: { type: string, example: Bearer }
+        expires_in: { type: integer }
 
     UserProfile:
       type: object
       required: [user_id, email, tenant_id]
       properties:
-        user_id:
+        user_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        tenant_id: { type: string }
+
+    SupplierStatus:
+      type: string
+      enum: [active, inactive]
+
+    Supplier:
+      type: object
+      required: [supplier_id, name, country, status, created_at, updated_at]
+      properties:
+        supplier_id: { type: string, format: uuid }
+        name: { type: string }
+        country: { type: string, minLength: 2, maxLength: 2, description: ISO 3166-1 alpha-2 }
+        contact_email: { type: string, format: email }
+        external_ref: { type: string, description: Opcioni ERP ID }
+        status: { $ref: "#/components/schemas/SupplierStatus" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    SupplierList:
+      type: object
+      required: [suppliers]
+      properties:
+        suppliers:
+          type: array
+          items: { $ref: "#/components/schemas/Supplier" }
+        next_cursor: { type: string, format: date-time }
+
+    CreateSupplierRequest:
+      type: object
+      required: [name, country]
+      properties:
+        name: { type: string }
+        country: { type: string, minLength: 2, maxLength: 2 }
+        contact_email: { type: string, format: email }
+        external_ref: { type: string }
+
+    UpdateSupplierRequest:
+      type: object
+      properties:
+        name: { type: string }
+        country: { type: string, minLength: 2, maxLength: 2 }
+        contact_email: { type: string, format: email }
+        external_ref: { type: string }
+        status: { $ref: "#/components/schemas/SupplierStatus" }
+
+    LocationSource:
+      type: string
+      enum: [manual, import, api]
+
+    Location:
+      type: object
+      required: [location_id, supplier_id, label, geometry, source, created_at, updated_at]
+      properties:
+        location_id: { type: string, format: uuid }
+        supplier_id: { type: string, format: uuid }
+        label: { type: string }
+        geometry: { $ref: "#/components/schemas/GeoJSONGeometry" }
+        area_ha: { type: number, minimum: 0 }
+        source: { $ref: "#/components/schemas/LocationSource" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    LocationList:
+      type: object
+      required: [locations]
+      properties:
+        locations:
+          type: array
+          items: { $ref: "#/components/schemas/Location" }
+        next_cursor: { type: string, format: date-time }
+
+    CreateLocationRequest:
+      type: object
+      required: [supplier_id, label, geometry]
+      properties:
+        supplier_id: { type: string, format: uuid }
+        label: { type: string }
+        geometry: { $ref: "#/components/schemas/GeoJSONGeometry" }
+        area_ha: { type: number, minimum: 0 }
+
+    UpdateLocationRequest:
+      type: object
+      properties:
+        label: { type: string }
+        geometry: { $ref: "#/components/schemas/GeoJSONGeometry" }
+        area_ha: { type: number, minimum: 0 }
+
+    LocationImportRequest:
+      type: object
+      required: [supplier_id, format, features]
+      properties:
+        supplier_id: { type: string, format: uuid }
+        format:
           type: string
-          format: uuid
-        email:
-          type: string
-          format: email
-        tenant_id:
-          type: string
+          enum: [geojson, kml, csv]
+        features:
+          type: array
+          items:
+            type: object
+            required: [label, geometry]
+            properties:
+              label: { type: string }
+              geometry: { $ref: "#/components/schemas/GeoJSONGeometry" }
+              area_ha: { type: number }
+
+    LocationImportResponse:
+      type: object
+      required: [imported_count, locations]
+      properties:
+        imported_count: { type: integer }
+        locations:
+          type: array
+          items: { $ref: "#/components/schemas/Location" }
+
+    VerifyJobStatus:
+      type: string
+      enum: [pending, processing, done, needs_review, error]
 
     Verdict:
       type: string
-      description: Ishod verifikacije za parcelu
       enum: [deforestation_free, loss_detected, needs_review]
 
-    JobStatus:
+    StartVerifyRequest:
+      type: object
+      properties:
+        baseline_date:
+          type: string
+          format: date
+          default: "2020-12-31"
+
+    VerifyJob:
+      type: object
+      required: [verify_job_id, location_id, status, created_at]
+      properties:
+        verify_job_id: { type: string, format: uuid }
+        location_id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/VerifyJobStatus" }
+        baseline_date: { type: string, format: date }
+        created_at: { type: string, format: date-time }
+
+    VerifyResult:
+      type: object
+      properties:
+        verdict: { $ref: "#/components/schemas/Verdict" }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        checked_at: { type: string, format: date-time }
+        report_ref: { type: string }
+        provider:
+          type: string
+          enum: [whisp]
+          default: whisp
+
+    VerifyJobWithResult:
+      allOf:
+        - $ref: "#/components/schemas/VerifyJob"
+        - type: object
+          properties:
+            result: { $ref: "#/components/schemas/VerifyResult" }
+
+    EvidenceLinkType:
       type: string
-      enum: [pending, processing, done, needs_review, error]
+      enum: [location, supplier, lot]
+
+    EvidenceLink:
+      type: object
+      required: [type, id]
+      properties:
+        type: { $ref: "#/components/schemas/EvidenceLinkType" }
+        id: { type: string, format: uuid }
+
+    Evidence:
+      type: object
+      required: [evidence_id, kind, title, version, linked_to, storage_ref, uploaded_at]
+      properties:
+        evidence_id: { type: string, format: uuid }
+        kind:
+          type: string
+          description: Pack-specifično; wood pack vidi packs/wood/fields.json
+        title: { type: string }
+        expires_at: { type: string, format: date }
+        linked_to: { $ref: "#/components/schemas/EvidenceLink" }
+        storage_ref: { type: string }
+        version: { type: integer, minimum: 1 }
+        uploaded_at: { type: string, format: date-time }
+
+    EvidenceList:
+      type: object
+      required: [evidence]
+      properties:
+        evidence:
+          type: array
+          items: { $ref: "#/components/schemas/Evidence" }
+        next_cursor: { type: string, format: date-time }
+
+    CreateEvidenceForm:
+      type: object
+      required: [file, kind, title, linked_to]
+      properties:
+        file: { type: string, format: binary }
+        kind: { type: string }
+        title: { type: string }
+        expires_at: { type: string, format: date }
+        linked_to:
+          type: string
+          description: JSON string EvidenceLink objekta
+
+    UpdateEvidenceRequest:
+      type: object
+      properties:
+        title: { type: string }
+        kind: { type: string }
+        expires_at: { type: string, format: date }
 
     Parcel:
       type: object
       required: [id, geometry]
       properties:
-        id:
-          type: string
-          description: Identifikator parcele u okviru posla
-        geometry:
-          type: object
-          description: GeoJSON Geometry objekat (Point, Polygon, MultiPolygon, …)
-          additionalProperties: true
+        id: { type: string }
+        geometry: { type: object, additionalProperties: true }
 
     UploadParcelsResponse:
       type: object
       required: [parcels_ref]
       properties:
-        parcels_ref:
-          type: string
-          description: Ključ uploadovanog fajla parcela u deljenom skladištu
+        parcels_ref: { type: string }
 
     CreateJobRequest:
       type: object
       required: [parcels_ref]
       properties:
-        parcels_ref:
-          type: string
-          description: Ključ ulaznog fajla parcela u skladištu (iz POST /v1/uploads/parcels)
-        baseline_date:
-          type: string
-          format: date
-          default: "2020-12-31"
-          description: Referentni datum (EUDR pravila se menjaju — konfigurabilno)
-        params:
-          type: object
-          additionalProperties: true
-          description: Opcioni parametri analize (npr. prag pouzdanosti)
+        parcels_ref: { type: string }
+        baseline_date: { type: string, format: date, default: "2020-12-31" }
+        params: { type: object, additionalProperties: true }
+
+    JobStatus:
+      type: string
+      enum: [pending, processing, done, needs_review, error]
 
     Job:
       type: object
@@ -509,10 +1097,7 @@ components:
         jobs:
           type: array
           items: { $ref: "#/components/schemas/Job" }
-        next_cursor:
-          type: string
-          format: date-time
-          description: Cursor za sledeću stranicu; izostavljen ako nema više rezultata
+        next_cursor: { type: string, format: date-time }
 
     ParcelResult:
       type: object
@@ -520,17 +1105,9 @@ components:
       properties:
         parcel_id: { type: string }
         verdict: { $ref: "#/components/schemas/Verdict" }
-        confidence:
-          type: number
-          minimum: 0
-          maximum: 1
-          description: Ocena pouzdanosti (0–1)
-        report_ref:
-          type: string
-          description: Ključ PDF dokaza u skladištu
-        export_ref:
-          type: string
-          description: Ključ mašinski-čitljivog izvoza (CSV/GeoJSON)
+        confidence: { type: number }
+        report_ref: { type: string }
+        export_ref: { type: string }
 
     Result:
       type: object
@@ -541,16 +1118,5 @@ components:
         parcels:
           type: array
           items: { $ref: "#/components/schemas/ParcelResult" }
-        summary_ref:
-          type: string
-          description: Ključ zbirnog izveštaja u skladištu
-        method_version:
-          type: string
-          description: Verzija analitičkog metoda (radi reproducibilnosti)
-
-    Error:
-      type: object
-      required: [code, message]
-      properties:
-        code: { type: string }
-        message: { type: string }
+        summary_ref: { type: string }
+        method_version: { type: string }

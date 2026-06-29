@@ -36,6 +36,7 @@ make diff BASE=origin/main  # breaking-change provera lokalno
 
 make sdk-go               # Go klijent iz openapi.yaml  -> generated/go
 make sdk-python           # Python klijent iz openapi.yaml -> generated/python
+make sdk-typescript       # TypeScript klijent za FE -> generated/typescript
 
 make types-go             # Go tipovi iz JSON shema (queue) -> generated/go_types
 make types-python         # Python tipovi iz JSON shema (queue) -> generated/python_types
@@ -59,7 +60,14 @@ Predlog toka: promena ide prvo ovde (spec) → CI proveri breaking → objavi no
 
 U Fazi 0–1 (demo, prvi piloti, sve pokreće osnivač) dovoljne su same JSON Schema datoteke da se Go i Python slažu oko poruka. Pun OpenAPI → SDK pipeline se isplati u Fazi C, kad se API otvori spoljnim klijentima.
 
-### Faza B konvencije (v0.3.2)
+### v2 MVP (v0.8.0)
+
+Compliance platforma: **suppliers**, **locations**, **verify** (Whisp), **evidence** vault.
+Legacy `/v1/jobs` i `/v1/uploads/parcels` su **deprecated**.
+
+FE setup: [`docs/fe-setup.md`](docs/fe-setup.md). Roadmap: [`docs/implementation-roadmap.md`](docs/implementation-roadmap.md).
+
+### Faza B konvencije (legacy, v0.4.x)
 
 **Autentikacija:** `Authorization: Bearer <api_key>` na svim rutama osim `GET /v1/healthz`.
 

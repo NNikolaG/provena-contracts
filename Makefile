@@ -5,7 +5,7 @@ OPENAPI      := openapi.yaml
 OUT          := generated
 GEN_IMAGE    := openapitools/openapi-generator-cli:latest
 
-.PHONY: help lint version-check diff sdk-go sdk-python types-python types-go clean
+.PHONY: help lint version-check diff sdk-go sdk-python sdk-typescript types-python types-go clean
 
 help:
 	@echo "lint          - validacija openapi.yaml i JSON shema"
@@ -13,12 +13,12 @@ help:
 	@echo "diff BASE=ref - breaking-change diff openapi.yaml vs git ref"
 	@echo "sdk-go        - generiši Go klijent iz openapi.yaml"
 	@echo "sdk-python    - generiši Python klijent iz openapi.yaml"
-	@echo "types-python  - generiši Python tipove iz JSON shema (queue poruke)"
+	@echo "sdk-typescript - generiši TypeScript klijent iz openapi.yaml"
 	@echo "types-go      - generiši Go tipove iz JSON shema (queue poruke)"
 
 # --- validacija ---
 lint:
-	npx -y @redocly/cli@latest lint $(OPENAPI)
+	npx -y @redocly/cli@latest lint --config .redocly.yaml $(OPENAPI)
 	npx -y ajv-cli@latest compile -s schemas/job.schema.json
 	npx -y ajv-cli@latest compile -s schemas/result.schema.json
 
@@ -48,6 +48,11 @@ sdk-go:
 sdk-python:
 	docker run --rm -v $$PWD:/local $(GEN_IMAGE) generate \
 		-i /local/$(OPENAPI) -g python -o /local/$(OUT)/python --additional-properties=packageName=provena_client
+
+sdk-typescript:
+	docker run --rm -v $$PWD:/local $(GEN_IMAGE) generate \
+		-i /local/$(OPENAPI) -g typescript-fetch -o /local/$(OUT)/typescript \
+		--additional-properties=npmName=@provena/api-client,supportsES6=true,typescriptThreePlus=true
 
 # --- tipovi iz JSON shema (unutrašnje queue poruke) ---
 types-python:
