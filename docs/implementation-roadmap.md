@@ -9,7 +9,7 @@ Kratak pregled verzija OpenAPI ugovora. Detaljan plan: [provena-api/docs/impleme
 | 0.6.0 | M1 | + suppliers, locations |
 | 0.7.0 | M2 | + location verify, verify-jobs |
 | 0.8.0 | M3 | + evidence vault |
-| 0.9.0 | M4 | + lots, lot-events, shipments (planirano) |
-| 1.0.0 | M4 | + packages, dashboard (planirano) |
+| 0.9.0 | M4 | + lots, lot-events, shipments |
+| 1.0.0 | M4 | + packages, dashboard |
 
 **Pravilo:** FE i api prate istu `info.version` / `VERSION` fajl.

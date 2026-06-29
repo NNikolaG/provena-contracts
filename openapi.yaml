@@ -10,8 +10,8 @@ info:
     Compliance platforma za regionalne izvoznike ka EU (supply strana).
     Core engine: dobavljači, lokacije (geo), dokazi (vault), satelitska verify
     (Whisp, stub 2 EUDR), chain-of-custody (lots, događaji, isporuke).
-    Compliance paketi i dashboard — planirano v1.0.
-  version: 0.9.0
+    Compliance paketi (DDS export) i dashboard statusa stub 1/2/3.
+  version: 1.0.0
 
 servers:
   - url: https://api.provena.example
@@ -41,6 +41,10 @@ tags:
     description: Događaji na lotu (ulaz, proces, izlaz, isporuka)
   - name: shipments
     description: Isporuke ka EU kupcu
+  - name: packages
+    description: Compliance paketi za EU kupca (DDS export, ne TRACES)
+  - name: dashboard
+    description: Agregat statusa stub 1/2/3 po dobavljaču/lotu
   - name: jobs
     description: "Legacy verify poslovi (deprecated)"
   - name: uploads
@@ -880,6 +884,116 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /v1/packages:
+    get:
+      operationId: listCompliancePackages
+      summary: Lista compliance paketa
+      tags: [packages]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: pack
+          in: query
+          schema: { $ref: "#/components/schemas/CompliancePack" }
+      responses:
+        "200":
+          description: Lista paketa
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompliancePackageList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createCompliancePackage
+      summary: Generiši compliance paket iz lotova
+      tags: [packages]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCompliancePackageRequest"
+      responses:
+        "201":
+          description: Paket kreiran
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompliancePackage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/packages/{packageId}:
+    get:
+      operationId: getCompliancePackage
+      summary: Detalji compliance paketa
+      tags: [packages]
+      parameters:
+        - $ref: "#/components/parameters/PackageId"
+      responses:
+        "200":
+          description: Paket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompliancePackage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteCompliancePackage
+      summary: Obriši compliance paket
+      tags: [packages]
+      parameters:
+        - $ref: "#/components/parameters/PackageId"
+      responses:
+        "204":
+          description: Obrisano
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/packages/{packageId}/export:
+    get:
+      operationId: exportCompliancePackage
+      summary: Preuzmi DDS export snapshot (JSON)
+      tags: [packages]
+      parameters:
+        - $ref: "#/components/parameters/PackageId"
+      responses:
+        "200":
+          description: JSON snapshot za DDS / arhivu
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompliancePackageExport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      summary: Agregat stub 1/2/3 completion po dobavljaču i lotu
+      tags: [dashboard]
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /v1/uploads/parcels:
     post:
       operationId: uploadParcels
@@ -1061,6 +1175,11 @@ components:
       schema: { type: string, format: uuid }
     ShipmentId:
       name: shipmentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PackageId:
+      name: packageId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -1502,6 +1621,138 @@ components:
           items: { type: string, format: uuid }
           minItems: 1
         external_ref: { type: string }
+
+    CompliancePack:
+      type: string
+      enum: [wood]
+      description: Pack vertikala; core je neutralan, terminologija u packs/*/fields.json
+
+    CompliancePackageStatus:
+      type: string
+      enum: [ready, exported]
+
+    CompliancePackage:
+      type: object
+      required: [package_id, pack, status, lot_ids, evidence_ids, verify_job_ids, export_ref, created_at, updated_at]
+      properties:
+        package_id: { type: string, format: uuid }
+        label: { type: string }
+        pack: { $ref: "#/components/schemas/CompliancePack" }
+        status: { $ref: "#/components/schemas/CompliancePackageStatus" }
+        lot_ids:
+          type: array
+          items: { type: string, format: uuid }
+          minItems: 1
+        shipment_id: { type: string, format: uuid }
+        evidence_ids:
+          type: array
+          items: { type: string, format: uuid }
+        verify_job_ids:
+          type: array
+          items: { type: string, format: uuid }
+        export_ref: { type: string, description: Interni ref za preuzimanje snapshot-a }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CompliancePackageList:
+      type: object
+      required: [packages]
+      properties:
+        packages:
+          type: array
+          items: { $ref: "#/components/schemas/CompliancePackage" }
+        next_cursor: { type: string, format: date-time }
+
+    CreateCompliancePackageRequest:
+      type: object
+      required: [pack, lot_ids]
+      properties:
+        label: { type: string }
+        pack: { $ref: "#/components/schemas/CompliancePack" }
+        lot_ids:
+          type: array
+          items: { type: string, format: uuid }
+          minItems: 1
+        shipment_id: { type: string, format: uuid, description: Opciona veza sa isporukom }
+
+    CompliancePackageExport:
+      type: object
+      required: [package_id, pack, generated_at, lots, evidence, verify_results]
+      description: Snapshot za DDS arhivu / ručni unos (ne TRACES API)
+      properties:
+        package_id: { type: string, format: uuid }
+        pack: { $ref: "#/components/schemas/CompliancePack" }
+        label: { type: string }
+        generated_at: { type: string, format: date-time }
+        shipment:
+          $ref: "#/components/schemas/Shipment"
+        lots:
+          type: array
+          items: { $ref: "#/components/schemas/Lot" }
+        lot_events:
+          type: array
+          items: { $ref: "#/components/schemas/LotEvent" }
+        evidence:
+          type: array
+          items: { $ref: "#/components/schemas/Evidence" }
+        verify_results:
+          type: array
+          items: { $ref: "#/components/schemas/VerifyJobWithResult" }
+        suppliers:
+          type: array
+          items: { $ref: "#/components/schemas/Supplier" }
+        locations:
+          type: array
+          items: { $ref: "#/components/schemas/Location" }
+
+    StubCompletion:
+      type: object
+      required: [complete, total, percent]
+      properties:
+        complete: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 0 }
+        percent: { type: number, minimum: 0, maximum: 100 }
+
+    SupplierComplianceRow:
+      type: object
+      required: [supplier_id, name, legal, deforestation_free, traceability]
+      properties:
+        supplier_id: { type: string, format: uuid }
+        name: { type: string }
+        location_count: { type: integer, minimum: 0 }
+        legal: { $ref: "#/components/schemas/StubCompletion" }
+        deforestation_free: { $ref: "#/components/schemas/StubCompletion" }
+        traceability: { $ref: "#/components/schemas/StubCompletion" }
+
+    LotComplianceRow:
+      type: object
+      required: [lot_id, label, status, legal, deforestation_free, traceability]
+      properties:
+        lot_id: { type: string, format: uuid }
+        label: { type: string }
+        status: { $ref: "#/components/schemas/LotStatus" }
+        legal: { $ref: "#/components/schemas/StubCompletion" }
+        deforestation_free: { $ref: "#/components/schemas/StubCompletion" }
+        traceability: { $ref: "#/components/schemas/StubCompletion" }
+
+    DashboardSummary:
+      type: object
+      required: [generated_at, overall, suppliers, lots]
+      properties:
+        generated_at: { type: string, format: date-time }
+        overall:
+          type: object
+          required: [legal, deforestation_free, traceability]
+          properties:
+            legal: { $ref: "#/components/schemas/StubCompletion" }
+            deforestation_free: { $ref: "#/components/schemas/StubCompletion" }
+            traceability: { $ref: "#/components/schemas/StubCompletion" }
+        suppliers:
+          type: array
+          items: { $ref: "#/components/schemas/SupplierComplianceRow" }
+        lots:
+          type: array
+          items: { $ref: "#/components/schemas/LotComplianceRow" }
 
     Parcel:
       type: object
